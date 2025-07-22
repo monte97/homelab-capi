@@ -40,3 +40,16 @@ You can customize the following parameters:
 ## 🪪 License
 
 MIT License
+
+----
+
+
+Control Plane:  2 vCPU, 6GB RAM
+Worker 1:       1 vCPU, 4GB RAM  
+Worker 2:       1 vCPU, 4GB RAM
+Sistema host:   2GB RAM rimanenti
+
+
+https://claude.ai/chat/fd0e91cd-1b7d-4764-9950-0229cea528c4
+
+con anche i generatori di config
