@@ -44,7 +44,7 @@ spec:
       numCores: 2
       numSockets: 1
       sourceNode: K8S0
-      templateID: 8500
+      templateID: 8700
       checks:
         skipCloudInitStatus: true
 ---
