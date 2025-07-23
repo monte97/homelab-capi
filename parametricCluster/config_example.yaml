@@ -1,0 +1,155 @@
+# Example configuration for Kubernetes cluster generation
+# Copy and modify this file to customize your cluster
+
+cluster_name: "homelab-cluster"
+namespace: "default"
+kubernetes_version: "v1.32.0"
+replicas: 3  # Number of control plane replicas
+
+# Proxmox nodes where VMs can be created
+allowed_nodes:
+  - "K8S0"
+  - "K8S1" 
+  - "K8S2"
+
+# Kubernetes API server endpoint
+control_plane_endpoint:
+  host: "192.168.0.30"    # Virtual IP for control plane
+  port: 6443              # Standard Kubernetes API port
+
+# DNS servers for cluster nodes
+dns_servers:
+  - "8.8.8.8"
+  - "8.8.4.4"
+  # You can also use local DNS servers:
+  # - "192.168.0.1"
+
+# Network configuration
+ipv4_config:
+  addresses:
+    - "192.168.0.20-192.168.0.49"  # IP range for cluster nodes (expanded for workers)
+  gateway: "192.168.0.254"          # Network gateway
+  prefix: 24                        # Subnet mask (/24)
+
+# Scheduler settings
+scheduler_hints:
+  memory_adjustment: 0
+
+# Control Plane VM template specifications
+machine_template:
+  disks:
+    boot_volume:
+      disk: "scsi0"        # SCSI disk identifier
+      size_gb: 40          # Disk size in GB
+      format: "qcow2"      # Disk format
+      full: true           # Full disk allocation
+  
+  memory_mib: 4096         # Memory in MiB (4GB)
+  
+  network:
+    bridge: "vmbr0"        # Proxmox bridge interface
+    model: "virtio"        # Network adapter model
+  
+  cpu:
+    cores: 4               # CPU cores per VM
+    sockets: 1             # CPU sockets
+  
+  source_node: "K8S0"      # Default Proxmox node for VM creation
+  template_id: 8700        # VM template ID to clone from
+  
+  checks:
+    skip_cloud_init_status: true
+
+# Talos Linux specific configuration for control plane
+talos_config:
+  install_disk: "/dev/sda"                    # Target disk for installation
+  extensions:
+    - "ghcr.io/siderolabs/qemu-guest-agent:9.2.0"  # QEMU guest agent
+  kernel_args:
+    - "net.ifnames=0"                         # Predictable network names
+  network_interface: "eth0"                   # Primary network interface
+  dhcp: false                                 # Disable DHCP (use static IP)
+
+# =============================================================================
+# WORKER NODES CONFIGURATION
+# =============================================================================
+workers:
+  enabled: true           # Set to false to create control-plane-only cluster
+  replicas: 3             # Number of worker nodes
+  
+  # Worker VM template specifications
+  machine_template:
+    disks:
+      boot_volume:
+        disk: "scsi0"     # SCSI disk identifier
+        size_gb: 50       # Disk size in GB (larger for workloads)
+        format: "qcow2"   # Disk format
+        full: true        # Full disk allocation
+    
+    memory_mib: 8192      # Memory in MiB (8GB for workers)
+    
+    network:
+      bridge: "vmbr0"     # Proxmox bridge interface
+      model: "virtio"     # Network adapter model
+    
+    cpu:
+      cores: 4            # CPU cores per worker VM
+      sockets: 1          # CPU sockets
+    
+    source_node: "K8S0"   # Default Proxmox node for worker creation
+    template_id: 8700     # VM template ID to clone from
+    
+    checks:
+      skip_cloud_init_status: true
+  
+  # Talos configuration for worker nodes
+  talos_config:
+    talos_version: "v1.9"                     # Talos version for workers
+    install_disk: "/dev/sda"                  # Target disk for installation
+    extensions:
+      - "ghcr.io/siderolabs/qemu-guest-agent:9.2.0"  # QEMU guest agent
+    kernel_args:
+      - "net.ifnames=0"                       # Predictable network names
+    network_interface: "eth0"                 # Primary network interface
+    dhcp: false                               # Disable DHCP (use static IP)
+  gateway: "192.168.0.254"          # Network gateway
+  prefix: 24                        # Subnet mask (/24)
+
+# Scheduler settings
+scheduler_hints:
+  memory_adjustment: 0
+
+# VM template specifications
+machine_template:
+  disks:
+    boot_volume:
+      disk: "scsi0"        # SCSI disk identifier
+      size_gb: 40          # Disk size in GB
+      format: "qcow2"      # Disk format
+      full: true           # Full disk allocation
+  
+  memory_mib: 4096         # Memory in MiB (4GB)
+  
+  network:
+    bridge: "vmbr0"        # Proxmox bridge interface
+    model: "virtio"        # Network adapter model
+  
+  cpu:
+    cores: 4               # CPU cores per VM
+    sockets: 1             # CPU sockets
+  
+  source_node: "K8S0"      # Default Proxmox node for VM creation
+  template_id: 8700        # VM template ID to clone from
+  
+  checks:
+    skip_cloud_init_status: true
+
+# Talos Linux specific configuration
+talos_config:
+  install_disk: "/dev/sda"                    # Target disk for installation
+  extensions:
+    - "ghcr.io/siderolabs/qemu-guest-agent:9.2.0"  # QEMU guest agent
+  kernel_args:
+    - "net.ifnames=0"                         # Predictable network names
+  network_interface: "eth0"                   # Primary network interface
+  dhcp: false                                 # Disable DHCP (use static IP)
