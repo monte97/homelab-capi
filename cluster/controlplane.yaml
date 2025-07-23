@@ -1,0 +1,150 @@
+# =============================================================================
+# HOMELAB KUBERNETES CLUSTER CONFIGURATION
+# =============================================================================
+# This file defines a complete Kubernetes cluster setup using:
+# - Cluster API for cluster lifecycle management
+# - Talos Linux as the operating system
+# - Proxmox as the infrastructure provider
+# =============================================================================
+
+---
+# =============================================================================
+# CLUSTER DEFINITION
+# =============================================================================
+# Main cluster resource that ties together the control plane and infrastructure
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: homelab-cluster
+  namespace: default
+spec:
+  # Reference to the control plane configuration
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+    kind: TalosControlPlane
+    name: talos-cp
+  # Reference to the infrastructure provider configuration
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ProxmoxCluster
+    name: proxmox-cluster
+
+---
+# =============================================================================
+# INFRASTRUCTURE CONFIGURATION
+# =============================================================================
+# Defines the Proxmox infrastructure settings for the cluster
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ProxmoxCluster
+metadata:
+  name: proxmox-cluster
+  namespace: default
+spec:
+  # VM scheduling preferences
+  schedulerHints:
+    memoryAdjustment: 0  # No memory adjustment for VMs
+  # List of Proxmox nodes where VMs can be created
+  allowedNodes:
+    - K8S0
+  # Kubernetes API server endpoint configuration
+  controlPlaneEndpoint:
+    host: 192.168.0.30    # Virtual IP for the control plane
+    port: 6443            # Standard Kubernetes API port
+  # DNS servers for the cluster nodes
+  dnsServers:
+    - 8.8.8.8
+    - 8.8.4.4
+  # Network configuration for cluster nodes
+  ipv4Config:
+    addresses:
+      - 192.168.0.20-192.168.0.29  # IP range for cluster nodes
+    gateway: 192.168.0.254          # Network gateway
+    prefix: 24                      # Subnet mask (/24)
+
+---
+# =============================================================================
+# MACHINE TEMPLATE CONFIGURATION
+# =============================================================================
+# Template defining the VM specifications for control plane nodes
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ProxmoxMachineTemplate
+metadata:
+  name: control-plane-template
+  namespace: default
+spec:
+  template:
+    spec:
+      # VM disk configuration
+      disks:
+        bootVolume:
+          disk: scsi0        # SCSI disk identifier
+          sizeGb: 20         # 20GB disk size
+          format: qcow2      # Disk format
+          full: true         # Full disk allocation
+      # VM memory allocation
+      memoryMiB: 2048        # 2GB RAM
+      # VM network configuration
+      network:
+        default:
+          bridge: vmbr0      # Proxmox bridge interface
+          model: virtio      # Network adapter model
+      # VM CPU configuration
+      numCores: 2            # 2 CPU cores
+      numSockets: 1          # 1 CPU socket
+      # Proxmox-specific settings
+      sourceNode: K8S0       # Proxmox node where VM will be created
+      templateID: 8700       # VM template ID to clone from
+      # Additional checks and settings
+      checks:
+        skipCloudInitStatus: true  # Skip cloud-init status check
+
+---
+# =============================================================================
+# CONTROL PLANE CONFIGURATION
+# =============================================================================
+# Defines the Talos control plane configuration
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+kind: TalosControlPlane
+metadata:
+  name: talos-cp
+spec:
+  # Kubernetes version to install
+  version: v1.32.0
+  # Number of control plane replicas (single node setup)
+  replicas: 1
+  # Reference to the machine template for control plane nodes
+  infrastructureTemplate:
+    kind: ProxmoxMachineTemplate
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    name: control-plane-template
+    namespace: default
+  # Talos-specific configuration
+  controlPlaneConfig:
+    controlplane:
+      generateType: controlplane
+      # Strategic patches to customize Talos configuration
+      strategicPatches:
+        # Patch 1: Configure disk installation and extensions
+        - |
+          - op: replace
+            path: /machine/install
+            value:
+              disk: /dev/sda  # Target disk for Talos installation
+              extensions:
+                # QEMU guest agent for better VM integration
+                - image: ghcr.io/siderolabs/qemu-guest-agent:9.2.0
+        # Patch 2: Add kernel arguments for consistent network naming
+        - |
+          - op: add
+            path: /machine/install/extraKernelArgs
+            value:
+              - net.ifnames=0  # Use predictable network interface names
+        # Patch 3: Configure network interface with VIP
+        - |
+          - op: add
+            path: /machine/network/interfaces
+            value:
+              - interface: eth0
+                dhcp: false    # Disable DHCP
+                vip:
+                  ip: 192.168.0.30  # Virtual IP for high availability
