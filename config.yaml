@@ -1,0 +1,77 @@
+allowed_nodes:
+- K8S0
+- K8S1
+- K8S2
+cluster_name: homelab-cluster
+control_plane_endpoint:
+  host: 192.168.0.30
+  port: 6443
+dns_servers:
+- 8.8.8.8
+- 8.8.4.4
+ipv4_config:
+  addresses:
+  - 192.168.0.20-192.168.0.29
+  gateway: 192.168.0.254
+  prefix: 24
+kubernetes_version: v1.32.0
+machine_template:
+  checks:
+    skip_cloud_init_status: true
+  cpu:
+    cores: 2
+    sockets: 1
+  disks:
+    boot_volume:
+      disk: scsi0
+      format: qcow2
+      full: true
+      size_gb: 20
+  memory_mib: 2048
+  network:
+    bridge: vmbr0
+    model: virtio
+  source_node: K8S0
+  template_id: 8700
+namespace: default
+replicas: 1
+scheduler_hints:
+  memory_adjustment: 0
+talos_config:
+  dhcp: false
+  extensions:
+  - ghcr.io/siderolabs/qemu-guest-agent:9.2.0
+  install_disk: /dev/sda
+  kernel_args:
+  - net.ifnames=0
+  network_interface: eth0
+workers:
+  enabled: true
+  machine_template:
+    checks:
+      skip_cloud_init_status: true
+    cpu:
+      cores: 2
+      sockets: 1
+    disks:
+      boot_volume:
+        disk: scsi0
+        format: qcow2
+        full: true
+        size_gb: 20
+    memory_mib: 4096
+    network:
+      bridge: vmbr0
+      model: virtio
+    source_node: K8S0
+    template_id: 8700
+  replicas: 2
+  talos_config:
+    dhcp: false
+    extensions:
+    - ghcr.io/siderolabs/qemu-guest-agent:9.2.0
+    install_disk: /dev/sda
+    kernel_args:
+    - net.ifnames=0
+    network_interface: eth0
+    talos_version: v1.9
