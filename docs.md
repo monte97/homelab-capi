@@ -66,12 +66,11 @@ python cluster_generator.py --help
    ```
 
 2. **Assign required permissions**:
+
    ```bash
-   # Create role with necessary privileges
-   pveum role add CAPIRole -privs "VM.Allocate,VM.Clone,VM.Config.CDROM,VM.Config.CPU,VM.Config.Cloudinit,VM.Config.Disk,VM.Config.HWType,VM.Config.Memory,VM.Config.Network,VM.Config.Options,VM.Monitor,VM.Audit,VM.PowerMgmt,Datastore.AllocateSpace,Datastore.Audit"
-   
-   # Assign role to user
-   pveum aclmod / -user capi@pve -role CAPIRole
+    pveum user add capi@pve
+    pveum aclmod / -user capi@pve -role Administrator
+    pveum user token add capi@pve capi-token --privsep 0
    ```
 
 3. **Generate API token**:
@@ -80,17 +79,17 @@ python cluster_generator.py --help
    pveum user token add capi@pve capi-token --privsep=0
    ```
 
-### Network Configuration
-
-Ensure proper network setup:
-
-```bash
-# Verify bridge configuration
-ip link show vmbr0
-
-# Check IP ranges for VM allocation
-# Ensure no conflicts with existing infrastructure
-```
+  ```console
+    ┌──────────────┬──────────────────────────────────────┐                                   
+    │ key          │ value                                │                                   
+    ╞══════════════╪══════════════════════════════════════╡                                   
+    │ full-tokenid │ capi@pve!capi-token                  │                                   
+    ├──────────────┼──────────────────────────────────────┤                                   
+    │ info         │ {"privsep":"0"}                      │                                   
+    ├──────────────┼──────────────────────────────────────┤                                   
+    │ value        │ your-generated-secret                │                                   
+    └──────────────┴──────────────────────────────────────┘                                   
+  ```
 
 ---
 
@@ -99,25 +98,22 @@ ip link show vmbr0
 ### Download and Prepare Template
 
 1. **Download Talos ISO**:
+  Get latest release with `nocloud` and `quemu-agent` support neabled
    ```bash
-   # Get latest release
-   wget https://github.com/siderolabs/talos/releases/download/v1.8.4/talos-amd64.iso
+   wget https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.9.5/metal-amd64.iso
    ```
 
 2. **Create VM template in Proxmox**:
-   - Create new VM (ID: 8700 recommended)
+   - Create new VM
    - Configure with appropriate resources
+   - enable qemu agent
    - Attach Talos ISO as boot device
-   - Boot and install Talos (minimal setup)
    - Convert to template
 
 3. **Install QEMU Guest Agent**:
    ```bash
    # On Proxmox host
    apt install qemu-guest-agent
-   
-   # Enable in VM template
-   qm set 8700 --agent enabled=1
    ```
 
 ---
@@ -128,10 +124,9 @@ ip link show vmbr0
 
 1. **Download clusterctl**:
    ```bash
-   # Install clusterctl
-   curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.8.5/clusterctl-linux-amd64 -o clusterctl
-   chmod +x clusterctl
-   sudo mv clusterctl /usr/local/bin/
+    # Install clusterctl
+    curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/clusterctl-linux-amd64 -o clusterctl
+    sudo install -o root -g root -m 0755 clusterctl /usr/local/bin/clusterctl
    ```
 
 2. **Setup provider configuration**:
@@ -160,7 +155,9 @@ Set required environment variables:
 export PROXMOX_URL="https://your-proxmox-host:8006/api2/json"
 export PROXMOX_TOKEN="capi@pve!capi-token"
 export PROXMOX_SECRET="your-generated-secret"
+```
 
+```bash
 # Optional: Make persistent
 echo 'export PROXMOX_URL="https://your-proxmox-host:8006/api2/json"' >> ~/.bashrc
 echo 'export PROXMOX_TOKEN="capi@pve!capi-token"' >> ~/.bashrc  
@@ -337,7 +334,7 @@ kubectl --kubeconfig kubeconfig-homelab get componentstatuses
 
 ---
 
-## 👷 Worker Node Management  
+## 👷 Worker Node Management ( ⚠️ TO BE TESTED ⚠️)
 
 ### Enable Workers During Generation
 
@@ -460,16 +457,6 @@ talos_config:
     network_interface: "eth0"
     dhcp: false
 ```
-
-### Resource Planning Guidelines
-
-| Deployment Type | Control Plane | Workers | Total Resources |
-|-----------------|---------------|---------|-----------------|
-| **Development** | 1x (2CPU/2GB) | 1x (2CPU/4GB) | 4CPU/6GB |
-| **Homelab** | 1x (2CPU/2GB) | 2x (2CPU/4GB) | 6CPU/10GB |
-| **Production** | 3x (2CPU/2GB) | 3x (2CPU/4GB) | 12CPU/18GB |
-| **High-Load** | 3x (4CPU/6GB) | 5x (4CPU/8GB) | 32CPU/58GB |
-
 ---
 
 ## 🔧 Troubleshooting
@@ -502,7 +489,7 @@ qm config 8700
 qm agent 8700 ping
 ```
 
-#### 3. **Network Configuration Problems**
+#### 3. **Network Configuration Problems** ( ⚠️ TO BE TESTED ⚠️)
 
 ```bash
 # Check bridge configuration
@@ -529,7 +516,7 @@ kubectl logs -n capi-system deployment/capi-controller-manager
 kubectl logs -n capx-system deployment/capx-controller-manager
 ```
 
-#### 5. **Machine Creation Failures**
+#### 5. **Machine Creation Failures** ( ⚠️ TO BE TESTED ⚠️)
 
 ```bash
 # Check machine status
@@ -543,7 +530,7 @@ kubectl get proxmoxmachines -A -o wide
 kubectl describe proxmoxmachine <machine-name>
 ```
 
-### Debugging Commands
+### Debugging Commands ( ⚠️ TO BE TESTED ⚠️)
 
 ```bash
 # Full cluster status
@@ -561,7 +548,7 @@ kubectl logs -f -n capx-system deployment/capx-controller-manager
 kubectl logs -f -n capi-bootstrap-talos-system deployment/capi-bootstrap-talos-controller-manager
 ```
 
-### Recovery Procedures
+### Recovery Procedures ( ⚠️ TO BE TESTED ⚠️)
 
 #### Clean Failed Deployment
 
@@ -623,7 +610,7 @@ qm snapshot <vmid> backup-$(date +%Y%m%d)
 
 ---
 
-## 🚀 Advanced Usage
+## 🚀 Advanced Usage ( ⚠️ TO BE TESTED ⚠️)
 
 ### Custom Talos Extensions
 

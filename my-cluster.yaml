@@ -1,0 +1,216 @@
+
+# =============================================================================
+# HOMELAB KUBERNETES CLUSTER CONFIGURATION
+# =============================================================================
+# Generated cluster configuration using:
+# - Cluster API for cluster lifecycle management
+# - Talos Linux as the operating system
+# - Proxmox as the infrastructure provider
+# =============================================================================
+
+---
+# =============================================================================
+# CLUSTER DEFINITION
+# =============================================================================
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: homelab-cluster
+  namespace: default
+spec:
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+    kind: TalosControlPlane
+    name: homelab-cluster-cp
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ProxmoxCluster
+    name: homelab-cluster-proxmox
+
+---
+# =============================================================================
+# INFRASTRUCTURE CONFIGURATION
+# =============================================================================
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ProxmoxCluster
+metadata:
+  name: homelab-cluster-proxmox
+  namespace: default
+spec:
+  schedulerHints:
+    memoryAdjustment: 0
+  allowedNodes:
+    - K8S0
+    - K8S1
+    - K8S2
+  controlPlaneEndpoint:
+    host: 192.168.0.30
+    port: 6443
+  dnsServers:
+    - 8.8.8.8
+    - 8.8.4.4
+  ipv4Config:
+    addresses:
+      - 192.168.0.20-192.168.0.29
+    gateway: 192.168.0.254
+    prefix: 24
+
+---
+# =============================================================================
+# CONTROL PLANE MACHINE TEMPLATE
+# =============================================================================
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ProxmoxMachineTemplate
+metadata:
+  name: homelab-cluster-cp-template
+  namespace: default
+spec:
+  template:
+    spec:
+      disks:
+        bootVolume:
+          disk: scsi0
+          sizeGb: 20
+          format: qcow2
+          full: true
+      memoryMiB: 2048
+      network:
+        default:
+          bridge: vmbr0
+          model: virtio
+      numCores: 2
+      numSockets: 1
+      sourceNode: K8S0
+      templateID: 8700
+      checks:
+        skipCloudInitStatus: true
+
+---
+# =============================================================================
+# CONTROL PLANE CONFIGURATION
+# =============================================================================
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+kind: TalosControlPlane
+metadata:
+  name: homelab-cluster-cp
+spec:
+  version: v1.32.0
+  replicas: 1
+  infrastructureTemplate:
+    kind: ProxmoxMachineTemplate
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    name: homelab-cluster-cp-template
+    namespace: default
+  controlPlaneConfig:
+    controlplane:
+      generateType: controlplane
+      strategicPatches:
+        - |
+          - op: replace
+            path: /machine/install
+            value:
+              disk: /dev/sda
+              extensions:
+                - image: ghcr.io/siderolabs/qemu-guest-agent:9.2.0
+        - |
+          - op: add
+            path: /machine/install/extraKernelArgs
+            value:
+              - net.ifnames=0
+        - |
+          - op: add
+            path: /machine/network/interfaces
+            value:
+              - interface: eth0
+                dhcp: false
+                vip:
+                  ip: 192.168.0.30
+
+---
+# =============================================================================
+# WORKER NODES DEPLOYMENT
+# =============================================================================
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: homelab-cluster-workers
+  namespace: default
+spec:
+  clusterName: homelab-cluster
+  replicas: 2
+  selector:
+    matchLabels: null
+  template:
+    spec:
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+          kind: TalosConfigTemplate
+          name: homelab-cluster-workers-config
+      clusterName: homelab-cluster
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: ProxmoxMachineTemplate
+        name: homelab-cluster-worker-template
+      version: v1.32.0
+
+---
+# =============================================================================
+# WORKER MACHINE TEMPLATE
+# =============================================================================
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ProxmoxMachineTemplate
+metadata:
+  name: homelab-cluster-worker-template
+  namespace: default
+spec:
+  template:
+    spec:
+      disks:
+        bootVolume:
+          disk: scsi0
+          sizeGb: 20
+          format: qcow2
+          full: true
+      memoryMiB: 4096
+      network:
+        default:
+          bridge: vmbr0
+          model: virtio
+      numCores: 2
+      numSockets: 1
+      sourceNode: K8S0
+      templateID: 8700
+      checks:
+        skipCloudInitStatus: true
+
+---
+# =============================================================================
+# WORKER TALOS CONFIGURATION TEMPLATE
+# =============================================================================
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: TalosConfigTemplate
+metadata:
+  name: homelab-cluster-workers-config
+  namespace: default
+spec:
+  template:
+    spec:
+      generateType: worker
+      talosVersion: v1.9
+      configPatches:
+        - op: replace
+          path: /machine/install
+          value:
+            disk: /dev/sda
+            extensions:
+              - image: ghcr.io/siderolabs/qemu-guest-agent:9.2.0
+        - op: add
+          path: /machine/install/extraKernelArgs
+          value:
+            - net.ifnames=0
+        - op: add
+          path: /machine/network/interfaces
+          value:
+            - interface: eth0
+              dhcp: false
